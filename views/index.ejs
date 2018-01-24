@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css"
+          integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+</head>
+<body>
+<div class="card text-center">
+
+    <div class="card-body">
+        <table id="kitchenTable" class="table">
+            <tbody>
+            <tr>
+                <th scope="col">Name</th>
+                <th scope="col">Quantity</th>
+                <th scope="col">Created-till-now</th>
+                <th scope="col">Predicted</th>
+                <th scope="col">Status</th>
+            </tr>
+            <%
+            if (orders instanceof Array){
+            orders.forEach(function(data, index) { %>
+            <tr id='<%= data['dishName'] %>'>
+                <td><%= data['dishName'] %></td>
+                <td><%= data['dishQuantity'] %></td>
+                <td><%= data['createdUntilNow'] %></td>
+                <td><%= data['predictedQuantity'] %></td>
+                <td>
+                    <button type="button" id='markDone-<%= data['dishName'] %>' class="btn btn-primary">Complete
+                    </button>
+                </td>
+            </tr>
+            <% });
+            }
+            %>
+            <div class="card-footer text-muted">
+                <button id="generateReport" type="button" class="btn btn-info">Generate report</button>
+            </div>
+
+
+            </tbody>
+        </table>
+
+        <!-- For report generation.-->
+        <div id="content" hidden>
+            <table class="table">
+
+                <%
+                if (locals.orders){ %>
+                <tr>
+                    <th scope="col">Dish Name</th>
+                    <th scope="col">Produced</th>
+                    <th scope="col">Predicted</th>
+                </tr>
+                <%
+                if (orders instanceof Array){
+                orders.forEach(function(data, index) { %>
+                <tr>
+                    <td><%= data['dishName'] %></td>
+                    <td><%= data['createdUntilNow'] %></td>
+                    <td><%= data['predictedQuantity'] %></td>
+
+                </tr>
+                <% });
+                }
+                }
+                else { %>
+                <h1>No orders found</h1>
+                <% }
+                %>
+
+            </table>
+        </div>
+
+
+        <!-- For report generation -->
+        <div id="editor"></div>
+    </div>
+
+</div>
+<script src="https://code.jquery.com/jquery-3.1.1.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js"
+        integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q"
+        crossorigin="anonymous"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"
+        integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl"
+        crossorigin="anonymous"></script>
+<script src="../javascripts/socket.io.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/0.9.0rc1/jspdf.min.js"></script>
+<script>
+
+    /** Create a socket variable **/
+    /** Using SOCKET.IO, we will dynamically handle the data changes in the html table. **/
+    var socket = io.connect();
+    $(document).ready(function () {
+
+
+        /** Listen to an event that updates the Kitchen data **/
+        socket.on('placeOrder', function (data) {
+            updateKitchenTable(data)
+        });
+
+        /** When an order is marked as completed **/
+        $(document).on('click', '[id^="markDone-"]', function () {
+            var completeOrder = {
+                "async": true,
+                "crossDomain": true,
+                "url": "http://localhost:3000/orders/completeAnOrder",
+                "method": "POST",
+                "headers": {
+                    "content-type": "application/x-www-form-urlencoded",
+                    "cache-control": "no-cache",
+                    "postman-token": "4b3d3ff9-74f4-92a9-4a6c-859e6d46b9b9"
+                },
+                "data": {
+                    "dishName": $(this).attr('id').split("-")[1]
+                }
+            }
+
+            $.ajax(completeOrder).done(function (data) {
+                updateKitchenTable(data)
+            });
+
+        });
+
+
+        /** Dynamically handle the changes in the data in Kitchen table **/
+        function updateKitchenTable(data) {
+            if (data.order.isInserted) {
+                var markup = "<tr id='" + data.order.orderData.dishName + "'><td>" + data.order.orderData.dishName + "</td><td>" + data.order.orderData.dishQuantity + "</td><td>" + data.order.orderData.createdUntilNow + "</td><td>" + data.order.orderData.predictedQuantity + "</td> <td><button type='button' id='markDone-" + data.order.orderData.dishName + "' class='btn btn-primary'>Complete</button></td></tr>";
+                $("#kitchenTable").append(markup);
+            }
+            else {
+                var markup = "<tr id='" + data.order.orderData.dishName + "'><td>" + data.order.orderData.dishName + "</td><td>" + data.order.orderData.dishQuantity + "</td><td>" + data.order.orderData.createdUntilNow + "</td><td>" + data.order.orderData.predictedQuantity + "</td> <td><button type='button' id='markDone-" + data.order.orderData.dishName + "' class='btn btn-primary'>Complete</button></td></tr>";
+                $("#" + data.order.orderData.dishName + "").replaceWith(markup);
+            }
+        }
+
+        /** Generate reports using JSPDF plugin **/
+        var doc = new jsPDF();
+        var specialElementHandlers = {
+            '#editor': function (element, renderer) {
+                return true;
+            }
+        };
+        $('#generateReport').click(function () {
+            doc.fromHTML($('#content').html(), 15, 15, {
+                'elementHandlers': specialElementHandlers
+            });
+            doc.save('reports.pdf');
+        });
+    });
+
+</script>
+</body>
+</html>
